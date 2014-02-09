@@ -86,19 +86,19 @@ impl Shell {
             argvAnd.remove(0);
 
 
-            let mut argvPipe: ~[&str];
+            //let mut argvPipe: ~[&str];
 
             let mut cmd_array: ~[&str];
 
             if self.flag == true
             {
                 cmd_array = cmd_line3.split_str(" ").collect();
-                argvPipe = cmd_line3.split_str_iter('|').filter_map(|x| if x != "" {Some(x.to_owned())}else{None}).to_owned_vec();
+                //argvPipe = cmd_line3.split_str_iter('|').filter_map(|x| if x != "" {Some(x.to_owned())}else{None}).to_owned_vec();
             }
             else
             {
                 cmd_array = cmd_line1.split_str(" ").collect();
-                argvPipe = cmd_line1.split_str_iter('|').filter_map(|x| if x != "" {Some(x.to_owned())}else{None}).to_owned_vec();
+                //argvPipe = cmd_line1.split_str_iter('|').filter_map(|x| if x != "" {Some(x.to_owned())}else{None}).to_owned_vec();
             }
 
             let mut cmd_ac: ~[&str] = cmd_array.clone().to_owned();
