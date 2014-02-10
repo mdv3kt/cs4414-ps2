@@ -13,7 +13,7 @@ extern mod extra;
 
 use std::{io, run, os};
 use std::io::buffered::BufferedReader;
-
+use std::io::signal::{Listener, Interrupt};
 use std::io::stdin;
 
 use extra::getopts;
@@ -53,8 +53,12 @@ impl Shell {
         let mut in_chan = libc::STDIN_FILENO;
         let mut out_chan = libc::STDOUT_FILENO;
 
+        let mut listener = Listener::new();
+        listener.register(Interrupt);
 
        loop {
+
+
             self.pipeflag = false;
             self.flag = false;
             self.ioflag = false;
@@ -83,23 +87,56 @@ impl Shell {
             let cmd_line3 = cmd_line2.slice_to(cmd_line2.len()-2);
             let mut argvAnd: ~[~str] =
             cmd_line3.split(' ').filter_map(|x| if x != "" { Some(x.to_owned()) } else { None }).to_owned_vec();
+            if argvAnd.len() > 0
+            {
             argvAnd.remove(0);
+            }
 
-
-            //let mut argvPipe: ~[&str];
+            let mut argvPipe: ~[~str];
 
             let mut cmd_array: ~[&str];
 
             if self.flag == true
             {
                 cmd_array = cmd_line3.split_str(" ").collect();
-                //argvPipe = cmd_line3.split_str_iter('|').filter_map(|x| if x != "" {Some(x.to_owned())}else{None}).to_owned_vec();
+                argvPipe = cmd_line3.split('|').filter_map(|x| if x != "" { Some(x.to_owned()) } else { None }).to_owned_vec();
             }
             else
             {
                 cmd_array = cmd_line1.split_str(" ").collect();
-                //argvPipe = cmd_line1.split_str_iter('|').filter_map(|x| if x != "" {Some(x.to_owned())}else{None}).to_owned_vec();
+                argvPipe = cmd_line1.split('|').filter_map(|x| if x != "" { Some(x.to_owned()) } else { None }).to_owned_vec();
             }
+
+            let mut pipeArray: ~[os::Pipe] = ~[];
+
+            if(argvPipe.len() > 1)
+            {
+                self.pipeflag = true;
+                for _ in range(0, argvPipe.len()-1)
+                {
+                pipeArray.push(os::pipe());
+                }
+            }
+
+            for i in range(0, argvPipe.len()-1)
+            {
+                if i == 0
+                {
+                    out_chan = pipeArray[i].out;
+
+                }
+                if i > 0
+                {
+                    in_chan = pipeArray[i-1].input;
+                    out_chan = pipeArray[i].out;
+                }
+                if i == argvPipe.len() -1
+                {
+                    out_chan = libc::STDOUT_FILENO
+                }
+            }
+
+
 
             let mut cmd_ac: ~[&str] = cmd_array.clone().to_owned();
 
@@ -121,21 +158,7 @@ impl Shell {
 
             }
 
-            for i in range(0, cmd_ac.len()-1)
-            {
-                if cmd_ac[i] == ">"
-                {
-                    self.ioflag  = true;
-                    cmd_ac.remove(i);
-                }
-                if cmd_ac[i] == "<"
-                {
-                    self.ioflag = true;
-                    cmd_ac.remove(i);
-                }
 
-
-            }
 
             /*for i in range(0, cmd_ac.len()-1)
             {
@@ -149,22 +172,29 @@ impl Shell {
 
 
             //println("{:s}",cmd_line3);
-
-            
+            if self.pipeflag == false && self.ioflag == false & self.flag == false
+            {
+                match program {
+                ""      =>  { continue; },
+                "exit"  =>  { return; },
+                _       =>  { self.run_cmdline(cmd_line2);}
+            }
+        }
+            else{
             match program {
                 ""      =>  { continue; },
                 "exit"  =>  { return; },
                 _       =>  { 
-                            if self.cmd_exists(program)
-                            {
+
                             if self.flag == true
                             {
                                 self.flag = false;
 
-                                if self.ioflag == true
+                                if self.ioflag == true || self.pipeflag == true
                                 {
                                     self.ioflag = false;
-
+                                    self.pipeflag = false;
+                                    
                                     let myproc = run::Process::new(program, argvAnd, run::ProcessOptions
                                     {
                                             env: None,
@@ -181,6 +211,7 @@ impl Shell {
                                 self.run();
                                 myproc.unwrap().finish();
                                 }
+
 
                                 else
                                 {
@@ -199,6 +230,35 @@ impl Shell {
 
                             }
 
+
+                            else if self.ioflag == true || self.pipeflag == true
+                                {
+                                    self.ioflag = false;
+                                    self.pipeflag = false;
+                                    
+                                    let myproc = run::Process::new(program, argvAnd, run::ProcessOptions
+                                    {
+                                            env: None,
+                                            dir: None,
+                                            in_fd: Some(in_chan),
+                                            out_fd: Some(out_chan),
+                                            err_fd: Some(libc::STDERR_FILENO)
+
+                                    });
+                            
+                           
+                            //let i = myproc.clone().unwrap().get_id();
+                            //println(format!("{}", i));
+                                self.run();
+                                myproc.unwrap().finish();
+                                }
+
+                                
+
+
+
+                            
+
                             else
                             {
                             self.run_cmdline(cmd_line2);
@@ -207,21 +267,16 @@ impl Shell {
 
                             }
 
-                            else
-                            {
-                                println!("{:s}: command not found", program);
-                            }    
-                              
 
                                 //self.run_cmdline(port.recv());
                                 //self.run_cmdline(port1.recv());
-                            }
+                            
                                 
 
                                
                         }; 
                         
-        } 
+        } }
         
     }
     
